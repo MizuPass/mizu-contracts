@@ -122,6 +122,7 @@ contract EventContract is ERC721, Ownable, ReentrancyGuard, IEventContract {
         address buyer
     ) external payable override onlyTicketOwner(tokenId) onlyRegularUsers nonReentrant {
         require(eventData.isActive, "Event not active");
+        require(price > 0, "Invalid resale price");
         require(price <= eventData.ticketPrice, "Resale price cannot exceed original ticket price");
         require(block.timestamp < eventData.eventDate, "Event has passed");
         require(!hasAttended[tokenId], "Ticket already used");
