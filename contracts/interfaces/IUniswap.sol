@@ -13,10 +13,26 @@ interface ISwapRouter02 {
         uint160 sqrtPriceLimitX96;
     }
 
+    struct ExactInputSingleParams {
+        address tokenIn;
+        address tokenOut;
+        uint24 fee;
+        address recipient;
+        uint256 deadline;
+        uint256 amountIn;
+        uint256 amountOutMinimum;
+        uint160 sqrtPriceLimitX96;
+    }
+
     function exactOutputSingle(ExactOutputSingleParams calldata params)
         external
         payable
         returns (uint256 amountIn);
+        
+    function exactInputSingle(ExactInputSingleParams calldata params)
+        external
+        payable
+        returns (uint256 amountOut);
 }
 
 interface IQuoterV2 {
@@ -26,10 +42,25 @@ interface IQuoterV2 {
         uint160 sqrtPriceLimitX96;
     }
 
+    struct QuoteExactInputParams {
+        bytes path;
+        uint256 amountIn;
+        uint160 sqrtPriceLimitX96;
+    }
+
     function quoteExactOutput(QuoteExactOutputParams memory params)
         external
         returns (
             uint256 amountIn,
+            uint160 sqrtPriceX96After,
+            uint32 initializedTicksCrossed,
+            uint256 gasEstimate
+        );
+        
+    function quoteExactInput(QuoteExactInputParams memory params)
+        external
+        returns (
+            uint256 amountOut,
             uint160 sqrtPriceX96After,
             uint32 initializedTicksCrossed,
             uint256 gasEstimate

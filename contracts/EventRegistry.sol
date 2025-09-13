@@ -153,16 +153,37 @@ contract EventRegistry {
         }
     }
     
-    function getAllActiveEvents() external view returns (uint256[] memory eventIds, address[] memory eventContractAddresses) {
+    function getAllActiveEvents() external view returns (
+        uint256[] memory eventIds, 
+        address[] memory eventContractAddresses,
+        IEventContract.EventData[] memory eventDataArray
+    ) {
         uint256[] memory allEventIds = new uint256[](eventCounter);
         for (uint256 i = 0; i < eventCounter; i++) {
             allEventIds[i] = i;
         }
-        return _getActiveEvents(allEventIds);
+        
+        (eventIds, eventContractAddresses) = _getActiveEvents(allEventIds);
+        
+        eventDataArray = new IEventContract.EventData[](eventIds.length);
+        for (uint256 i = 0; i < eventIds.length; i++) {
+            IEventContract eventContract = IEventContract(eventContractAddresses[i]);
+            eventDataArray[i] = eventContract.getEventData();
+        }
     }
     
-    function getOrganizerActiveEvents(address organizer) external view returns (uint256[] memory eventIds, address[] memory eventContractAddresses) {
-        return _getActiveEvents(organizerEvents[organizer]);
+    function getOrganizerActiveEvents(address organizer) external view returns (
+        uint256[] memory eventIds, 
+        address[] memory eventContractAddresses,
+        IEventContract.EventData[] memory eventDataArray
+    ) {
+        (eventIds, eventContractAddresses) = _getActiveEvents(organizerEvents[organizer]);
+        
+        eventDataArray = new IEventContract.EventData[](eventIds.length);
+        for (uint256 i = 0; i < eventIds.length; i++) {
+            IEventContract eventContract = IEventContract(eventContractAddresses[i]);
+            eventDataArray[i] = eventContract.getEventData();
+        }
     }
     
     function getEventDetails(uint256 eventId) external view returns (IEventContract.EventData memory eventData, address eventContract) {

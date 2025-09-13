@@ -26,7 +26,6 @@ contract EventContract is ERC721, Ownable, ReentrancyGuard, IEventContract {
     event MaxTicketsUpdated(uint256 newMaxTickets);
     event PlatformFeeCollected(uint256 amount, address platformWallet);
     
-    
     modifier onlyRegularUsers() {
         require(identityContract.isRegularUser(msg.sender), "Not a regular user");
         _;
@@ -154,7 +153,6 @@ contract EventContract is ERC721, Ownable, ReentrancyGuard, IEventContract {
         eventData.isActive = _isActive;
     }
     
-    
     function markAttendance(uint256 tokenId) external onlyOrganizer {
         require(!hasAttended[tokenId], "Ticket already used");
         hasAttended[tokenId] = true;
@@ -194,7 +192,5 @@ contract EventContract is ERC721, Ownable, ReentrancyGuard, IEventContract {
             hasAttended[tokenId],
             originalPurchasePrice[tokenId]
         );
-    }
-    
-    
+    }  
 }

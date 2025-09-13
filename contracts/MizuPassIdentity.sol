@@ -12,10 +12,9 @@ contract MizuPassIdentity {
     mapping(address => bytes32) public zkPassportIdentifiers;
     mapping(bytes32 => bool) public usedIdentifiers;
     
-    // Role-based system
     enum UserRole { None, EventCreator, RegularUser }
     mapping(address => UserRole) public userRoles;
-    mapping(address => string) public userRegistrationData; // IPFS hash for registration data
+    mapping(address => string) public userRegistrationData;
     
     address public owner;
     
@@ -73,7 +72,6 @@ contract MizuPassIdentity {
         return true;
     }
     
-    
     function isZKPassportVerified(address user) external view returns (bool) {
         require(user != address(0), "Invalid user address");
         return zkPassportIdentifiers[user] != bytes32(0);
@@ -109,5 +107,9 @@ contract MizuPassIdentity {
     
     function isRegularUser(address user) external view returns (bool) {
         return userRoles[user] == UserRole.RegularUser;
+    }
+    
+    function isUserRegistered(address user) external view returns (bool) {
+        return userRoles[user] != UserRole.None;
     }
 }
