@@ -12,11 +12,16 @@ contract MizuPassIdentity {
     mapping(address => bytes32) public zkPassportIdentifiers;
     mapping(bytes32 => bool) public usedIdentifiers;
     
+    // Role-based system
+    enum UserRole { None, EventCreator, RegularUser }
+    mapping(address => UserRole) public userRoles;
+    mapping(address => string) public userRegistrationData; // IPFS hash for registration data
+    
     address public owner;
     
     event DexWhitelistUpdated(address indexed dexRouter, bool whitelisted);
-    event NotVerified(address indexed account, string reason);
     event ZKPassportVerified(address indexed user, bytes32 nullifierHash);
+    event UserRoleRegistered(address indexed user, UserRole role, string ipfsHash);
     
     modifier onlyOwner() {
         require(msg.sender == owner, "Not owner");
@@ -44,11 +49,13 @@ contract MizuPassIdentity {
     }
     
     function updateDexWhitelist(address _dexRouter, bool _whitelisted) external onlyOwner {
+        require(_dexRouter != address(0), "Invalid DEX router address");
         dexWhitelist[_dexRouter] = _whitelisted;
         emit DexWhitelistUpdated(_dexRouter, _whitelisted);
     }
     
     function verifyMizuhikiSBT(address user) external view returns (bool) {
+        require(user != address(0), "Invalid user address");
         return mizuhikiSBT.balanceOf(user) > 0;
     }
     
@@ -68,10 +75,39 @@ contract MizuPassIdentity {
     
     
     function isZKPassportVerified(address user) external view returns (bool) {
+        require(user != address(0), "Invalid user address");
         return zkPassportIdentifiers[user] != bytes32(0);
     }
 
     function getUniqueIdentifier(address user) external view returns (bytes32) {
+        require(user != address(0), "Invalid user address");
         return zkPassportIdentifiers[user];
+    }
+    
+    function registerUserRole(UserRole role, string memory ipfsHash) external onlyVerifiedUsers {
+        require(role == UserRole.EventCreator || role == UserRole.RegularUser, "Invalid role");
+        require(userRoles[msg.sender] == UserRole.None, "User already registered");
+        require(bytes(ipfsHash).length > 0, "Invalid IPFS hash");
+        
+        userRoles[msg.sender] = role;
+        userRegistrationData[msg.sender] = ipfsHash;
+        
+        emit UserRoleRegistered(msg.sender, role, ipfsHash);
+    }
+    
+    function getUserRole(address user) external view returns (UserRole) {
+        return userRoles[user];
+    }
+    
+    function getUserRegistrationData(address user) external view returns (string memory) {
+        return userRegistrationData[user];
+    }
+    
+    function isEventCreator(address user) external view returns (bool) {
+        return userRoles[user] == UserRole.EventCreator;
+    }
+    
+    function isRegularUser(address user) external view returns (bool) {
+        return userRoles[user] == UserRole.RegularUser;
     }
 }

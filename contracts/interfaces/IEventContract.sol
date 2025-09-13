@@ -10,8 +10,6 @@ interface IEventContract {
         uint256 ticketsSold;
         bool isActive;
         uint256 eventDate;
-        uint256 maxResalePrice;
-        uint256 royaltyBps;
     }
     
     event EventCreated(
@@ -39,5 +37,4 @@ interface IEventContract {
     function purchaseTicket(address stealthAddress) external payable;
     function resaleTicket(uint256 ticketId, uint256 price, address buyer) external payable;
     function setEventActive(bool _isActive) external;
-    function updateResaleControls(uint256 maxPrice, uint256 royaltyBps) external;
 }

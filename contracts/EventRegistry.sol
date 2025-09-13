@@ -2,16 +2,18 @@
 pragma solidity ^0.8.24;
 
 import "./MizuPassIdentity.sol";
+import "./EventContract.sol";
 import "./interfaces/IEventContract.sol";
 
 contract EventRegistry {
     MizuPassIdentity public immutable identityContract;
     address public paymentGateway;
+    address public platformWallet;
     
     mapping(uint256 => address) public eventContracts;
     mapping(address => uint256[]) public organizerEvents;
     uint256 public eventCounter;
-    uint256 public eventCreationFee = 0.01 ether;
+    uint256 public eventCreationFee = 0.00000001 ether;
     
     address public owner;
     
@@ -24,14 +26,15 @@ contract EventRegistry {
     
     event EventCreationFeeUpdated(uint256 newFee);
     event PaymentGatewayUpdated(address indexed newGateway);
+    event PlatformWalletUpdated(address indexed newPlatformWallet);
     
     modifier onlyOwner() {
         require(msg.sender == owner, "Not owner");
         _;
     }
     
-    modifier onlyVerifiedUsers() {
-        require(identityContract.isVerifiedUser(msg.sender), "User not verified");
+    modifier onlyEventCreators() {
+        require(identityContract.isEventCreator(msg.sender), "Not an event creator");
         _;
     }
     
@@ -44,25 +47,25 @@ contract EventRegistry {
         string memory ipfsHash,
         uint256 ticketPrice,
         uint256 maxTickets,
-        uint256 eventDate,
-        uint256 maxResalePrice,
-        uint256 royaltyBps
-    ) external payable onlyVerifiedUsers returns (address eventContract) {
+        uint256 eventDate
+    ) external payable onlyEventCreators returns (address eventContract) {
         require(msg.value >= eventCreationFee, "Insufficient creation fee");
+        require(bytes(ipfsHash).length > 0, "Invalid IPFS hash");
         require(ticketPrice > 0, "Invalid ticket price");
         require(maxTickets > 0, "Invalid max tickets");
         require(eventDate > block.timestamp, "Invalid event date");
-        require(royaltyBps <= 1000, "Royalty too high");
+        require(paymentGateway != address(0), "Payment gateway not set");
+        require(platformWallet != address(0), "Platform wallet not set");
         
         eventContract = address(new EventContract(
             address(identityContract),
+            paymentGateway,
             msg.sender,
             ipfsHash,
             ticketPrice,
             maxTickets,
             eventDate,
-            maxResalePrice,
-            royaltyBps
+            platformWallet
         ));
         
         eventContracts[eventCounter] = eventContract;
@@ -83,14 +86,21 @@ contract EventRegistry {
     }
     
     function getEventContract(uint256 eventId) external view returns (address) {
+        require(eventId < eventCounter, "Event does not exist");
         return eventContracts[eventId];
     }
     
+    function getTotalEvents() external view returns (uint256) {
+        return eventCounter;
+    }
+    
     function getOrganizerEvents(address organizer) external view returns (uint256[] memory) {
+        require(organizer != address(0), "Invalid organizer address");
         return organizerEvents[organizer];
     }
     
     function setEventCreationFee(uint256 _fee) external onlyOwner {
+        require(_fee <= 1 ether, "Fee too high");
         eventCreationFee = _fee;
         emit EventCreationFeeUpdated(_fee);
     }
@@ -101,20 +111,67 @@ contract EventRegistry {
         emit PaymentGatewayUpdated(_paymentGateway);
     }
     
+    function setPlatformWallet(address _platformWallet) external onlyOwner {
+        require(_platformWallet != address(0), "Invalid platform wallet address");
+        platformWallet = _platformWallet;
+        emit PlatformWalletUpdated(_platformWallet);
+    }
+    
     function withdrawFees() external onlyOwner {
         payable(owner).transfer(address(this).balance);
     }
+    
+    function _getActiveEvents(uint256[] memory eventIds) internal view returns (uint256[] memory activeEventIds, address[] memory activeEventContracts) {
+        uint256 activeCount = 0;
+        
+        for (uint256 i = 0; i < eventIds.length; i++) {
+            uint256 eventId = eventIds[i];
+            if (eventContracts[eventId] != address(0)) {
+                IEventContract eventContractInterface = IEventContract(eventContracts[eventId]);
+                IEventContract.EventData memory eventData = eventContractInterface.getEventData();
+                if (eventData.isActive && block.timestamp < eventData.eventDate) {
+                    activeCount++;
+                }
+            }
+        }
+        
+        activeEventIds = new uint256[](activeCount);
+        activeEventContracts = new address[](activeCount);
+        uint256 index = 0;
+        
+        for (uint256 i = 0; i < eventIds.length; i++) {
+            uint256 eventId = eventIds[i];
+            if (eventContracts[eventId] != address(0)) {
+                IEventContract eventContractInterface = IEventContract(eventContracts[eventId]);
+                IEventContract.EventData memory eventData = eventContractInterface.getEventData();
+                if (eventData.isActive && block.timestamp < eventData.eventDate) {
+                    activeEventIds[index] = eventId;
+                    activeEventContracts[index] = eventContracts[eventId];
+                    index++;
+                }
+            }
+        }
+    }
+    
+    function getAllActiveEvents() external view returns (uint256[] memory eventIds, address[] memory eventContractAddresses) {
+        uint256[] memory allEventIds = new uint256[](eventCounter);
+        for (uint256 i = 0; i < eventCounter; i++) {
+            allEventIds[i] = i;
+        }
+        return _getActiveEvents(allEventIds);
+    }
+    
+    function getOrganizerActiveEvents(address organizer) external view returns (uint256[] memory eventIds, address[] memory eventContractAddresses) {
+        return _getActiveEvents(organizerEvents[organizer]);
+    }
+    
+    function getEventDetails(uint256 eventId) external view returns (IEventContract.EventData memory eventData, address eventContract) {
+        require(eventId < eventCounter, "Event does not exist");
+        eventContract = eventContracts[eventId];
+        require(eventContract != address(0), "Event contract not found");
+        
+        IEventContract eventContractInterface = IEventContract(eventContract);
+        eventData = eventContractInterface.getEventData();
+    }
 }
 
-contract EventContract {
-    constructor(
-        address _identityContract,
-        address _organizer,
-        string memory _ipfsHash,
-        uint256 _ticketPrice,
-        uint256 _maxTickets,
-        uint256 _eventDate,
-        uint256 _maxResalePrice,
-        uint256 _royaltyBps
-    ) {}
-}
