@@ -9,7 +9,8 @@ contract MizuPassIdentity {
     IMizuhikiSBT private immutable mizuhikiSBT;
     
     mapping(address => bool) public dexWhitelist;
-    mapping(address => bytes32) public zkPassportHashes;
+    mapping(address => bytes32) public zkPassportIdentifiers;
+    mapping(bytes32 => bool) public usedIdentifiers;
     
     address public owner;
     
@@ -33,8 +34,8 @@ contract MizuPassIdentity {
     }
     
     function _isVerifiedUser(address account) internal view returns (bool) {
-        return mizuhikiSBT.balanceOf(account) > 0 || 
-               zkPassportHashes[account] != bytes32(0) || 
+        return mizuhikiSBT.balanceOf(account) > 0 ||
+               zkPassportIdentifiers[account] != bytes32(0) ||
                dexWhitelist[account];
     }
     
@@ -51,29 +52,26 @@ contract MizuPassIdentity {
         return mizuhikiSBT.balanceOf(user) > 0;
     }
     
-    function verifyZKPassport(
-        address user,
-        bytes32 nullifierHash,
-        uint[8] calldata proof
+    function registerZKPassportUser(
+        bytes32 uniqueIdentifier
     ) external returns (bool) {
-        // TODO: Replace with actual ZK proof verification when circom contract is ready
-        // For now, we'll implement a placeholder that your friend can replace
-        require(verifyZKProof(proof, nullifierHash), "Invalid ZK proof");
-        require(zkPassportHashes[user] == bytes32(0), "ZK passport already verified");
-        
-        zkPassportHashes[user] = nullifierHash;
-        emit ZKPassportVerified(user, nullifierHash);
+        require(uniqueIdentifier != bytes32(0), "Invalid identifier");
+        require(zkPassportIdentifiers[msg.sender] == bytes32(0), "User already registered");
+        require(!usedIdentifiers[uniqueIdentifier], "Identifier already used");
+
+        zkPassportIdentifiers[msg.sender] = uniqueIdentifier;
+        usedIdentifiers[uniqueIdentifier] = true;
+
+        emit ZKPassportVerified(msg.sender, uniqueIdentifier);
         return true;
     }
     
-    function verifyZKProof(uint[8] calldata proof, bytes32 nullifierHash) internal pure returns (bool) {
-        // PLACEHOLDER: Replace this with your friend's circom-generated verification contract
-        // This should call the actual ZK proof verifier contract
-        // For now, we'll return true for testing purposes
-        return true;
-    }
     
     function isZKPassportVerified(address user) external view returns (bool) {
-        return zkPassportHashes[user] != bytes32(0);
+        return zkPassportIdentifiers[user] != bytes32(0);
+    }
+
+    function getUniqueIdentifier(address user) external view returns (bytes32) {
+        return zkPassportIdentifiers[user];
     }
 }
