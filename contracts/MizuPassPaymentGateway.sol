@@ -34,15 +34,6 @@ contract MizuPassPaymentGateway {
         uint256 mjpyAmount
     );
     
-    event StealthPayment(
-        uint256 indexed ephemeralPubKeyPrefix,
-        uint256 indexed ephemeralPubKey,
-        address indexed stealthAddress,
-        bytes32 viewTag,
-        uint256 amount,
-        bytes metadata
-    );
-    
     modifier onlyVerifiedUsers() {
         require(identityContract.isVerifiedUser(msg.sender), "User not verified");
         _;
@@ -53,41 +44,21 @@ contract MizuPassPaymentGateway {
         stealthManager = StealthAddressManager(_stealthManager);
     }
     
+    
     function purchaseTicketWithJETH(
         uint256 ticketId,
-        address recipientAddress,
+        address stealthAddress,
         uint256 jethAmount,
         uint256 deadline
     ) external payable onlyVerifiedUsers {
-        require(recipientAddress != address(0), "Invalid recipient address");
+        require(msg.value >= jethAmount, "Insufficient JETH payment");
+        require(stealthAddress != address(0), "Invalid stealth address");
         require(jethAmount > 0, "Invalid amount");
         require(deadline > block.timestamp, "Deadline passed");
-        require(msg.value >= jethAmount, "Insufficient JETH");
         
-        address stealthAddress = recipientAddress;
-        uint256 ephemeralPubKeyPrefix = 0;
-        uint256 ephemeralPubKey = 0;
-        bytes1 viewTag = 0x00;
+        uint256 mjpyReceived = _executeDirectSwap(jethAmount, deadline);
         
-        try stealthManager.generateStealthAddress(recipientAddress, uint256(keccak256(abi.encodePacked(block.timestamp, msg.sender, ticketId)))) returns (
-            address generatedStealth,
-            uint256 epkPrefix,
-            uint256 epk,
-            bytes1 vTag
-        ) {
-            stealthAddress = generatedStealth;
-            ephemeralPubKeyPrefix = epkPrefix;
-            ephemeralPubKey = epk;
-            viewTag = vTag;
-        } catch {
-            stealthAddress = recipientAddress;
-        }
-        
-        uint256 mjpyReceived = _executePrivateSwap(
-            jethAmount,
-            stealthAddress,
-            deadline
-        );
+        _transferThroughMixer(MJPY, mjpyReceived, stealthAddress);
         
         bytes32 paymentHash = keccak256(abi.encode(
             msg.sender,
@@ -109,25 +80,13 @@ contract MizuPassPaymentGateway {
         
         emit TicketPurchased(ticketId, msg.sender, stealthAddress, mjpyReceived);
         
-        if (stealthAddress != recipientAddress) {
-            emit StealthPayment(
-                ephemeralPubKeyPrefix,
-                ephemeralPubKey,
-                stealthAddress,
-                bytes32(viewTag),
-                mjpyReceived,
-                abi.encodePacked("AUTO_STEALTH_TICKET_PAYMENT", ticketId)
-            );
-        }
-        
         if (msg.value > jethAmount) {
             payable(msg.sender).transfer(msg.value - jethAmount);
         }
     }
     
-    function _executePrivateSwap(
+    function _executeDirectSwap(
         uint256 jethAmount,
-        address stealthAddr,
         uint256 deadline
     ) internal returns (uint256) {
         uint256 expectedMJPY = _quoteExactInput(jethAmount);
@@ -147,11 +106,9 @@ contract MizuPassPaymentGateway {
         
         uint256 mjpyReceived = ROUTER.exactInputSingle{value: jethAmount}(params);
         
-        _transferThroughMixer(MJPY, mjpyReceived, stealthAddr);
-        
         return mjpyReceived;
     }
-    
+
     function _transferThroughMixer(
         address token,
         uint256 amount,
@@ -159,7 +116,6 @@ contract MizuPassPaymentGateway {
     ) internal {
         IERC20(token).transfer(stealthAddr, amount);
     }
-    
     
     function _quoteExactInput(uint256 amountIn) internal returns (uint256) {
         bytes memory path = abi.encodePacked(WJETH, uint24(FEE_TIER), MJPY);
@@ -180,5 +136,17 @@ contract MizuPassPaymentGateway {
     
     function quoteJETHForMJPY(uint256 jethAmount) external returns (uint256 mjpyExpected) {
         return _quoteExactInput(jethAmount);
+    }
+    
+    function generateStealthAddress(
+        address recipientMetaAddress,
+        uint256 ephemeralPrivKey
+    ) external view returns (
+        address stealthAddress,
+        uint256 ephemeralPubKeyPrefix,
+        uint256 ephemeralPubKey,
+        bytes1 viewTag
+    ) {
+        return stealthManager.generateStealthAddress(recipientMetaAddress, ephemeralPrivKey);
     }
 }

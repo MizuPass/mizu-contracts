@@ -25,7 +25,11 @@ const config: HardhatUserConfig = {
       url: "https://rpc.kaigan.jsc.dev/rpc?token=zQao1Ji99KLxVeb7r2ofb2naaRxCaM5V7BY-JiwBtB0",
       accounts: PRIVATE_KEY ? [PRIVATE_KEY] : [],
       chainId: 5278000,
-    }
+    },
+    scrollSepolia: {
+      url: "https://sepolia-rpc.scroll.io",
+      accounts: PRIVATE_KEY ? [PRIVATE_KEY] : [],
+    },
   },
   etherscan: {
     apiKey: ETHERSCAN_API_KEY,
@@ -36,6 +40,14 @@ const config: HardhatUserConfig = {
         urls: {
           apiURL: "https://api-testnet.jscscan.com/api",
           browserURL: "https://explorer.kaigan.jsc.dev",
+        },
+      },
+      {
+        network: "scrollSepolia",
+        chainId: 534351,
+        urls: {
+          apiURL: "https://api-sepolia.scrollscan.com/api",
+          browserURL: "https://sepolia.scrollscan.com/",
         },
       },
     ],

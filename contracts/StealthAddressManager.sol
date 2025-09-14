@@ -10,15 +10,6 @@ contract StealthAddressManager {
         uint256 viewingPubKey
     );
     
-    event StealthPayment(
-        uint256 indexed ephemeralPubKeyPrefix,
-        uint256 indexed ephemeralPubKey,
-        address indexed stealthAddress,
-        bytes32 viewTag,
-        uint256 amount,
-        bytes metadata
-    );
-
     uint256 constant FIELD_ORDER = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F;
     uint256 constant GROUP_ORDER = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141;
     uint256 constant GX = 0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798;
@@ -56,7 +47,7 @@ contract StealthAddressManager {
     }
 
     function generateStealthAddress(
-        address recipientMetaAddress,
+        address recipientAddress,
         uint256 ephemeralPrivKey
     ) public view returns (
         address stealthAddress,
@@ -64,36 +55,43 @@ contract StealthAddressManager {
         uint256 ephemeralPubKey,
         bytes1 viewTag
     ) {
-        StealthMetaAddress memory meta = stealthMetaAddresses[recipientMetaAddress];
-        require(meta.spendingPubKey != 0, "Meta-address not registered");
-
-        (ephemeralPubKeyPrefix, ephemeralPubKey) = _multiplyPoint(
-            GX, GY, ephemeralPrivKey
-        );
-
-        (uint256 sharedX, uint256 sharedY) = _decompressPoint(
-            meta.viewingPubKeyPrefix,
-            meta.viewingPubKey
-        );
-        (uint256 sharedSecretX,) = _multiplyPoint(sharedX, sharedY, ephemeralPrivKey);
-
-        bytes32 hashedSharedSecret = keccak256(abi.encodePacked(sharedSecretX));
-        viewTag = bytes1(hashedSharedSecret);
-
-        (uint256 additiveX, uint256 additiveY) = _multiplyPoint(
-            GX, GY, uint256(hashedSharedSecret)
-        );
+        StealthMetaAddress memory meta = stealthMetaAddresses[recipientAddress];
         
-        (uint256 spendingX, uint256 spendingY) = _decompressPoint(
-            meta.spendingPubKeyPrefix,
-            meta.spendingPubKey
-        );
-        
-        (uint256 stealthPubKeyX, uint256 stealthPubKeyY) = _addPoints(
-            spendingX, spendingY, additiveX, additiveY
-        );
+        if (meta.spendingPubKey != 0) {
+            (ephemeralPubKeyPrefix, ephemeralPubKey) = _multiplyPoint(
+                GX, GY, ephemeralPrivKey
+            );
 
-        stealthAddress = _pubKeyToAddress(stealthPubKeyX, stealthPubKeyY);
+            (uint256 sharedX, uint256 sharedY) = _decompressPoint(
+                meta.viewingPubKeyPrefix,
+                meta.viewingPubKey
+            );
+            (uint256 sharedSecretX,) = _multiplyPoint(sharedX, sharedY, ephemeralPrivKey);
+
+            bytes32 hashedSharedSecret = keccak256(abi.encodePacked(sharedSecretX));
+            viewTag = bytes1(hashedSharedSecret);
+
+            (uint256 additiveX, uint256 additiveY) = _multiplyPoint(
+                GX, GY, uint256(hashedSharedSecret)
+            );
+            
+            (uint256 spendingX, uint256 spendingY) = _decompressPoint(
+                meta.spendingPubKeyPrefix,
+                meta.spendingPubKey
+            );
+            
+            (uint256 stealthPubKeyX, uint256 stealthPubKeyY) = _addPoints(
+                spendingX, spendingY, additiveX, additiveY
+            );
+
+            stealthAddress = _pubKeyToAddress(stealthPubKeyX, stealthPubKeyY);
+        } else {
+            bytes32 seed = keccak256(abi.encodePacked(recipientAddress, ephemeralPrivKey));
+            stealthAddress = address(uint160(uint256(seed)));
+            ephemeralPubKeyPrefix = 0;
+            ephemeralPubKey = 0;
+            viewTag = 0x00;
+        }
     }
 
     function _multiplyPoint(

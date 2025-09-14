@@ -79,22 +79,28 @@ contract EventContract is ERC721, Ownable, ReentrancyGuard, IEventContract {
             _eventDate
         );
     }
-    
-    function purchaseTicket(address stealthAddress) external payable override onlyRegularUsers nonReentrant {
+
+    function purchaseTicket() external payable onlyRegularUsers nonReentrant {
         require(eventData.isActive, "Event not active");
         require(eventData.ticketsSold < eventData.maxTickets, "Sold out");
         require(block.timestamp < eventData.eventDate, "Event has passed");
-        require(stealthAddress != address(0), "Invalid stealth address");
+        require(msg.value >= eventData.ticketPrice, "Insufficient payment");
         
-        uint256 tokenId = _tokenIdCounter++;
-        _safeMint(stealthAddress, tokenId);
+        address stealthAddress;
+        try paymentGateway.generateStealthAddress(msg.sender, uint256(keccak256(abi.encodePacked(block.timestamp, msg.sender, eventData.ticketPrice)))) returns (
+            address generatedStealth,
+            uint256,
+            uint256,
+            bytes1
+        ) {
+            stealthAddress = generatedStealth;
+        } catch {
+            stealthAddress = msg.sender;
+        }
         
-        originalPurchasePrice[tokenId] = eventData.ticketPrice;
-        eventData.ticketsSold++;
-        
-
         uint256 platformFee = (eventData.ticketPrice * PLATFORM_FEE_BPS) / 10000;
         uint256 organizerAmount = eventData.ticketPrice - platformFee;
+        uint256 tokenId = _tokenIdCounter++;
         
         paymentGateway.purchaseTicketWithJETH{value: organizerAmount}(
             tokenId,
@@ -103,12 +109,16 @@ contract EventContract is ERC721, Ownable, ReentrancyGuard, IEventContract {
             block.timestamp + 300
         );
         
+        _safeMint(stealthAddress, tokenId);
+        
+        originalPurchasePrice[tokenId] = eventData.ticketPrice;
+        eventData.ticketsSold++;
+        
         if (platformFee > 0) {
             payable(platformWallet).transfer(platformFee);
             emit PlatformFeeCollected(platformFee, platformWallet);
         }
         
-
         if (msg.value > eventData.ticketPrice) {
             payable(msg.sender).transfer(msg.value - eventData.ticketPrice);
         }
@@ -132,7 +142,6 @@ contract EventContract is ERC721, Ownable, ReentrancyGuard, IEventContract {
         uint256 platformFee = (price * PLATFORM_FEE_BPS) / 10000;
         uint256 sellerAmount = price - platformFee;
         
-
         _transfer(ownerOf(tokenId), buyer, tokenId);
         
         
