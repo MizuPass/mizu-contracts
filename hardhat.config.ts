@@ -4,7 +4,6 @@ import "hardhat-contract-sizer";
 import "@nomicfoundation/hardhat-verify";
 
 const PRIVATE_KEY = vars.get("PRIVATE_KEY");
-const ETHERSCAN_API_KEY = vars.get("ETHERSCAN_API_KEY");
 
 const config: HardhatUserConfig = {
   solidity: {
@@ -26,31 +25,6 @@ const config: HardhatUserConfig = {
       accounts: PRIVATE_KEY ? [PRIVATE_KEY] : [],
       chainId: 5278000,
     },
-    scrollSepolia: {
-      url: "https://sepolia-rpc.scroll.io",
-      accounts: PRIVATE_KEY ? [PRIVATE_KEY] : [],
-    },
-  },
-  etherscan: {
-    apiKey: ETHERSCAN_API_KEY,
-    customChains: [
-      {
-        network: "jscTestnet",
-        chainId: 5278000,
-        urls: {
-          apiURL: "https://api-testnet.jscscan.com/api",
-          browserURL: "https://explorer.kaigan.jsc.dev",
-        },
-      },
-      {
-        network: "scrollSepolia",
-        chainId: 534351,
-        urls: {
-          apiURL: "https://api-sepolia.scrollscan.com/api",
-          browserURL: "https://sepolia.scrollscan.com/",
-        },
-      },
-    ],
   },
   contractSizer: {
     alphaSort: true,

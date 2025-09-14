@@ -7,13 +7,18 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "./MizuPassIdentity.sol";
 import "./MizuPassPaymentGateway.sol";
 import "./interfaces/IEventContract.sol";
+import "./interfaces/IUniswap.sol";
 
 contract EventContract is ERC721, Ownable, ReentrancyGuard, IEventContract {
     MizuPassIdentity public immutable identityContract;
     MizuPassPaymentGateway public immutable paymentGateway;
     
     address public immutable platformWallet;
-    uint256 public constant PLATFORM_FEE_BPS = 250; // 2.5%
+    
+    uint8 public constant MJPY_DECIMALS = 4;
+    uint256 public constant TICKET_PURCHASE_FEE_MJPY = 1;
+    
+    address public constant MJPY = 0x115e91ef61ae86FbECa4b5637FD79C806c331632;
     
     EventData public eventData;
     uint256 private _tokenIdCounter;
@@ -24,11 +29,8 @@ contract EventContract is ERC721, Ownable, ReentrancyGuard, IEventContract {
     event EventMetadataUpdated(string newIpfsHash);
     event EventDateUpdated(uint256 newEventDate);
     event MaxTicketsUpdated(uint256 newMaxTickets);
-    event PlatformFeeCollected(uint256 amount, address platformWallet);
-    event OrganizerPaid(address indexed stealthAddress, address indexed organizer, uint256 mjpyAmount);
     event StealthAddressReadyToPay(address indexed stealthAddress, address indexed organizer, uint256 mjpyAmount);
 
-    
     modifier onlyRegularUsers() {
         require(identityContract.isRegularUser(msg.sender), "Not a regular user");
         _;
@@ -94,57 +96,38 @@ contract EventContract is ERC721, Ownable, ReentrancyGuard, IEventContract {
         _safeMint(_organizer, 0);
     }
 
-    function purchaseTicket(address stealthAddress) external payable onlyRegularUsers nonReentrant {
+    function purchaseTicket(address stealthAddress) external onlyRegularUsers nonReentrant {
         require(eventData.isActive, "Event not active");
         require(eventData.ticketsSold < eventData.maxTickets, "Sold out");
         require(block.timestamp < eventData.eventDate, "Event has passed");
-        require(msg.value >= eventData.ticketPrice, "Insufficient payment");
         require(stealthAddress != address(0), "Invalid stealth address");
         require(stealthAddress != msg.sender, "Stealth address cannot be sender");
         
-        uint256 platformFee = (eventData.ticketPrice * PLATFORM_FEE_BPS) / 10000;
+        uint256 totalPayment = eventData.ticketPrice + TICKET_PURCHASE_FEE_MJPY;
+        
+        require(IERC20(MJPY).balanceOf(msg.sender) >= totalPayment, "Insufficient MJPY balance for ticket purchase");
+        require(IERC20(MJPY).allowance(msg.sender, address(this)) >= totalPayment, "Insufficient MJPY allowance for ticket purchase");
+        require(IERC20(MJPY).transferFrom(msg.sender, address(this), totalPayment), "Failed to transfer MJPY payment");
+        
         uint256 tokenId = _tokenIdCounter++;
         
-        paymentGateway.purchaseTicketWithJETH{
-            value: eventData.ticketPrice
-        }(
-            tokenId,
-            stealthAddress,
-            eventData.ticketPrice,
-            block.timestamp + 300
-        );
+        IERC20(MJPY).transfer(stealthAddress, eventData.ticketPrice);
+        IERC20(MJPY).transfer(platformWallet, TICKET_PURCHASE_FEE_MJPY);
         
         _safeMint(stealthAddress, tokenId);
         
         originalPurchasePrice[tokenId] = eventData.ticketPrice;
         eventData.ticketsSold++;
         
-        if (platformFee > 0) {
-            payable(platformWallet).transfer(platformFee);
-            emit PlatformFeeCollected(platformFee, platformWallet);
-        }
-        
-        if (msg.value > eventData.ticketPrice) {
-            payable(msg.sender).transfer(msg.value - eventData.ticketPrice);
-        }
-        
         emit TicketPurchased(stealthAddress, tokenId, eventData.ticketPrice);
-        
-        emit StealthAddressReadyToPay(stealthAddress, eventData.organizer, eventData.ticketPrice - platformFee);
-    }
-
-    function recordOrganizerPayment(uint256 mjpyAmount) external {
-        require(mjpyAmount > 0, "Invalid amount");
-        require(eventData.organizer != address(0), "No organizer set");
-            
-        emit OrganizerPaid(msg.sender, eventData.organizer, mjpyAmount);
+        emit StealthAddressReadyToPay(stealthAddress, eventData.organizer, eventData.ticketPrice);
     }
 
     function resaleTicket(
         uint256 tokenId,
         uint256 price,
         address buyer
-    ) external payable override onlyTicketOwner(tokenId) onlyRegularUsers nonReentrant {
+    ) external override onlyTicketOwner(tokenId) onlyRegularUsers nonReentrant {
         require(eventData.isActive, "Event not active");
         require(price > 0, "Invalid resale price");
         require(price <= eventData.ticketPrice, "Resale price cannot exceed original ticket price");
@@ -153,21 +136,13 @@ contract EventContract is ERC721, Ownable, ReentrancyGuard, IEventContract {
         require(buyer != address(0), "Invalid buyer address");
         require(buyer != ownerOf(tokenId), "Cannot sell to self");
         
-        uint256 platformFee = (price * PLATFORM_FEE_BPS) / 10000;
-        uint256 sellerAmount = price - platformFee;
+        require(IERC20(MJPY).balanceOf(buyer) >= price, "Buyer has insufficient MJPY balance");
+        require(IERC20(MJPY).allowance(buyer, address(this)) >= price, "Buyer has insufficient MJPY allowance");
+        require(IERC20(MJPY).transferFrom(buyer, address(this), price), "Failed to transfer MJPY payment from buyer");
         
         _transfer(ownerOf(tokenId), buyer, tokenId);
         
-        if (platformFee > 0) {
-            payable(platformWallet).transfer(platformFee);
-            emit PlatformFeeCollected(platformFee, platformWallet);
-        }
-        
-        payable(msg.sender).transfer(sellerAmount);
-        
-        if (msg.value > price) {
-            payable(msg.sender).transfer(msg.value - price);
-        }
+        IERC20(MJPY).transfer(msg.sender, price);
         
         emit TicketResold(tokenId, msg.sender, buyer, price);
     }
@@ -216,15 +191,7 @@ contract EventContract is ERC721, Ownable, ReentrancyGuard, IEventContract {
             originalPurchasePrice[tokenId]
         );
     }
-    
-    function getEventName() external view returns (string memory) {
-        return name();
-    }
-    
-    function getEventSymbol() external view returns (string memory) {
-        return symbol();
-    }
-    
+        
     function tokenURI(uint256 tokenId) public view override returns (string memory) {
         require(_ownerOf(tokenId) != address(0), "URI query for nonexistent token");
         

@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import "./MizuPassIdentity.sol";
 import "./EventContract.sol";
 import "./interfaces/IEventContract.sol";
+import "./interfaces/IUniswap.sol";
 
 contract EventRegistry {
     MizuPassIdentity public immutable identityContract;
@@ -12,9 +13,11 @@ contract EventRegistry {
     
     mapping(uint256 => address) public eventContracts;
     mapping(address => uint256[]) public organizerEvents;
+
     uint256 public eventCounter;
-    uint256 public eventCreationFee = 0.00000001 ether;
-    
+    uint8 public constant MJPY_DECIMALS = 4;
+    uint256 public constant EVENT_CREATION_FEE_MJPY = 1;
+    address public constant MJPY = 0x115e91ef61ae86FbECa4b5637FD79C806c331632;
     address public owner;
     
     event EventCreated(
@@ -51,8 +54,11 @@ contract EventRegistry {
         uint256 eventDate,
         string memory eventName,
         string memory eventSymbol
-    ) external payable onlyEventCreators returns (address eventContract) {
-        require(msg.value >= eventCreationFee, "Insufficient creation fee");
+    ) external onlyEventCreators returns (address eventContract) {
+        require(IERC20(MJPY).balanceOf(msg.sender) >= EVENT_CREATION_FEE_MJPY, "Insufficient MJPY balance for event creation fee");
+        require(IERC20(MJPY).allowance(msg.sender, address(this)) >= EVENT_CREATION_FEE_MJPY, "Insufficient MJPY allowance for event creation fee");
+        require(IERC20(MJPY).transferFrom(msg.sender, address(this), EVENT_CREATION_FEE_MJPY), "Failed to transfer MJPY event creation fee");
+        
         require(bytes(ipfsHash).length > 0, "Invalid IPFS hash");
         require(bytes(ticketIpfsHash).length > 0, "Invalid ticket IPFS hash");
         require(ticketPrice > 0, "Invalid ticket price");
@@ -91,9 +97,7 @@ contract EventRegistry {
         
         eventCounter++;
         
-        if (msg.value > eventCreationFee) {
-            payable(msg.sender).transfer(msg.value - eventCreationFee);
-        }
+        IERC20(MJPY).transfer(platformWallet, EVENT_CREATION_FEE_MJPY);
     }
     
     function getEventContract(uint256 eventId) external view returns (address) {
@@ -110,12 +114,6 @@ contract EventRegistry {
         return organizerEvents[organizer];
     }
     
-    function setEventCreationFee(uint256 _fee) external onlyOwner {
-        require(_fee <= 1 ether, "Fee too high");
-        eventCreationFee = _fee;
-        emit EventCreationFeeUpdated(_fee);
-    }
-    
     function setPaymentGateway(address _paymentGateway) external onlyOwner {
         require(_paymentGateway != address(0), "Invalid gateway address");
         paymentGateway = _paymentGateway;
@@ -129,7 +127,10 @@ contract EventRegistry {
     }
     
     function withdrawFees() external onlyOwner {
-        payable(owner).transfer(address(this).balance);
+        uint256 balance = IERC20(MJPY).balanceOf(address(this));
+        if (balance > 0) {
+            IERC20(MJPY).transfer(owner, balance);
+        }
     }
     
     function _getActiveEvents(uint256[] memory eventIds) internal view returns (uint256[] memory activeEventIds, address[] memory activeEventContracts) {
