@@ -10,12 +10,13 @@ import "./interfaces/IUniswap.sol";
 
 contract EventContract is ERC721, Ownable, ReentrancyGuard, IEventContract {
     MizuPassIdentity public immutable identityContract;
-    IERC20 public immutable mjpyToken;
+    IERC20 public immutable jpymToken;
     
-    address public immutable platformWallet;    uint8 public constant MJPY_DECIMALS = 4;
-    uint256 public constant TICKET_PURCHASE_FEE_MJPY = 1;
+    address public immutable platformWallet;    
+    address public immutable JPYM;
 
-    address public constant MJPY = 0x115e91ef61ae86FbECa4b5637FD79C806c331632;
+    uint8 public constant JPYM_DECIMALS = 4;
+    uint256 public constant TICKET_PURCHASE_FEE_JPYM = 10000;
 
     EventData public eventData;
     uint256 private _tokenIdCounter;
@@ -42,7 +43,7 @@ contract EventContract is ERC721, Ownable, ReentrancyGuard, IEventContract {
     event StealthAddressReadyToPay(
         address indexed stealthAddress,
         address indexed organizer,
-        uint256 mjpyAmount
+        uint256 jpymAmount
     );
     event StealthAddressFunded(
         address indexed stealthAddress,
@@ -78,7 +79,7 @@ contract EventContract is ERC721, Ownable, ReentrancyGuard, IEventContract {
 
     constructor(
         address _identityContract,
-        address _mjpyToken,
+        address _jpymToken,
         address _organizer,
         string memory _ipfsHash,
         string memory _ticketIpfsHash,
@@ -90,7 +91,7 @@ contract EventContract is ERC721, Ownable, ReentrancyGuard, IEventContract {
         string memory _eventSymbol
     ) ERC721(_eventName, _eventSymbol) Ownable(_organizer) {
         require(_identityContract != address(0), "Invalid identity contract");
-        require(_mjpyToken != address(0), "Invalid MJPY token");
+        require(_jpymToken != address(0), "Invalid JPYM token");
         require(_organizer != address(0), "Invalid organizer");
         require(bytes(_ipfsHash).length > 0, "Invalid IPFS hash");
         require(bytes(_ticketIpfsHash).length > 0, "Invalid ticket IPFS hash");
@@ -101,7 +102,8 @@ contract EventContract is ERC721, Ownable, ReentrancyGuard, IEventContract {
         require(bytes(_eventSymbol).length <= 10, "Event symbol too long");
 
         identityContract = MizuPassIdentity(_identityContract);
-        mjpyToken = IERC20(_mjpyToken);
+        jpymToken = IERC20(_jpymToken);
+        JPYM = _jpymToken;
         platformWallet = _platformWallet;
 
         eventData = EventData({
@@ -141,12 +143,12 @@ contract EventContract is ERC721, Ownable, ReentrancyGuard, IEventContract {
         require(!ticketPurchased[msg.sender], "Already purchased");
         require(gasAmount > 0, "Gas amount required");
 
-        uint256 totalCost = eventData.ticketPrice + TICKET_PURCHASE_FEE_MJPY;
+        uint256 totalCost = eventData.ticketPrice + TICKET_PURCHASE_FEE_JPYM;
 
-        // 1. Transfer MJPY to stealth address (for privacy)
+        // 1. Transfer JPYM to stealth address (for privacy)
         require(
-            mjpyToken.transferFrom(msg.sender, stealthAddress, totalCost),
-            "MJPY transfer to stealth failed"
+            jpymToken.transferFrom(msg.sender, stealthAddress, totalCost),
+            "JPYM transfer to stealth failed"
         );
 
         // 2. Send JETH gas to stealth address
@@ -160,7 +162,7 @@ contract EventContract is ERC721, Ownable, ReentrancyGuard, IEventContract {
             stealthAddress: stealthAddress,
             buyer: msg.sender,
             ticketPrice: eventData.ticketPrice,
-            platformFee: TICKET_PURCHASE_FEE_MJPY,
+            platformFee: TICKET_PURCHASE_FEE_JPYM,
             timestamp: block.timestamp,
             isPaid: false
         });
@@ -183,11 +185,11 @@ contract EventContract is ERC721, Ownable, ReentrancyGuard, IEventContract {
 
         // Stealth address pays organizer and platform
         require(
-            mjpyToken.transferFrom(msg.sender, payment.organizer, payment.ticketPrice),
+            jpymToken.transferFrom(msg.sender, payment.organizer, payment.ticketPrice),
             "Payment to organizer failed"
         );
         require(
-            mjpyToken.transferFrom(msg.sender, platformWallet, payment.platformFee),
+            jpymToken.transferFrom(msg.sender, platformWallet, payment.platformFee),
             "Platform fee transfer failed"
         );
 
@@ -213,11 +215,11 @@ contract EventContract is ERC721, Ownable, ReentrancyGuard, IEventContract {
 
         // Complete payment as emergency fallback
         require(
-            mjpyToken.transferFrom(stealthAddress, payment.organizer, payment.ticketPrice),
+            jpymToken.transferFrom(stealthAddress, payment.organizer, payment.ticketPrice),
             "Payment to organizer failed"
         );
         require(
-            mjpyToken.transferFrom(stealthAddress, platformWallet, payment.platformFee),
+            jpymToken.transferFrom(stealthAddress, platformWallet, payment.platformFee),
             "Platform fee transfer failed"
         );
 
@@ -257,21 +259,21 @@ contract EventContract is ERC721, Ownable, ReentrancyGuard, IEventContract {
         require(buyer != ownerOf(tokenId), "Cannot sell to self");
 
         require(
-            IERC20(MJPY).balanceOf(buyer) >= price,
-            "Buyer has insufficient MJPY balance"
+            IERC20(JPYM).balanceOf(buyer) >= price,
+            "Buyer has insufficient JPYM balance"
         );
         require(
-            IERC20(MJPY).allowance(buyer, address(this)) >= price,
-            "Buyer has insufficient MJPY allowance"
+            IERC20(JPYM).allowance(buyer, address(this)) >= price,
+            "Buyer has insufficient JPYM allowance"
         );
         require(
-            IERC20(MJPY).transferFrom(buyer, address(this), price),
-            "Failed to transfer MJPY payment from buyer"
+            IERC20(JPYM).transferFrom(buyer, address(this), price),
+            "Failed to transfer JPYM payment from buyer"
         );
 
         _transfer(ownerOf(tokenId), buyer, tokenId);
 
-        IERC20(MJPY).transfer(msg.sender, price);
+        IERC20(JPYM).transfer(msg.sender, price);
 
         emit TicketResold(tokenId, msg.sender, buyer, price);
     }
@@ -331,19 +333,14 @@ contract EventContract is ERC721, Ownable, ReentrancyGuard, IEventContract {
         );
     }
 
-    function tokenURI(
-        uint256 tokenId
-    ) public view override returns (string memory) {
-        require(
-            _ownerOf(tokenId) != address(0),
-            "URI query for nonexistent token"
-        );
-
-        if (tokenId == 0) {
-            return string(abi.encodePacked("ipfs://", eventData.ipfsHash));
-        }
-
-        return string(abi.encodePacked("ipfs://", eventData.ticketIpfsHash));
+    function tokenURI(uint256 tokenId) public view override returns (string memory) {
+            require(_ownerOf(tokenId) != address(0), "URI query for nonexistent token");
+            
+            if (tokenId == 0) {
+                return string(abi.encodePacked("https://gateway.pinata.cloud/ipfs/", eventData.ipfsHash));
+            }
+            
+            return string(abi.encodePacked("https://gateway.pinata.cloud/ipfs/", eventData.ticketIpfsHash));
     }
 
     function _baseURI() internal pure override returns (string memory) {

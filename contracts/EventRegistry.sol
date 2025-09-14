@@ -15,9 +15,9 @@ contract EventRegistry {
     mapping(address => uint256[]) public organizerEvents;
 
     uint256 public eventCounter;
-    uint8 public constant MJPY_DECIMALS = 4;
-    uint256 public constant EVENT_CREATION_FEE_MJPY = 1;
-    address public constant MJPY = 0x115e91ef61ae86FbECa4b5637FD79C806c331632;
+    uint8 public constant JPYM_DECIMALS = 4;
+    uint256 public constant EVENT_CREATION_FEE_JPYM = 10000;
+    address public JPYM = 0x0000000000000000000000000000000000000000;
     address public owner;
     
     event EventCreated(
@@ -30,6 +30,7 @@ contract EventRegistry {
     event EventCreationFeeUpdated(uint256 newFee);
     event PaymentGatewayUpdated(address indexed newGateway);
     event PlatformWalletUpdated(address indexed newPlatformWallet);
+    event JPYMAddressUpdated(address indexed newJPYMAddress);
     
     modifier onlyOwner() {
         require(msg.sender == owner, "Not owner");
@@ -55,9 +56,9 @@ contract EventRegistry {
         string memory eventName,
         string memory eventSymbol
     ) external onlyEventCreators returns (address eventContract) {
-        require(IERC20(MJPY).balanceOf(msg.sender) >= EVENT_CREATION_FEE_MJPY, "Insufficient MJPY balance for event creation fee");
-        require(IERC20(MJPY).allowance(msg.sender, address(this)) >= EVENT_CREATION_FEE_MJPY, "Insufficient MJPY allowance for event creation fee");
-        require(IERC20(MJPY).transferFrom(msg.sender, address(this), EVENT_CREATION_FEE_MJPY), "Failed to transfer MJPY event creation fee");
+        require(IERC20(JPYM).balanceOf(msg.sender) >= EVENT_CREATION_FEE_JPYM, "Insufficient JPYM balance for event creation fee");
+        require(IERC20(JPYM).allowance(msg.sender, address(this)) >= EVENT_CREATION_FEE_JPYM, "Insufficient JPYM allowance for event creation fee");
+        require(IERC20(JPYM).transferFrom(msg.sender, address(this), EVENT_CREATION_FEE_JPYM), "Failed to transfer JPYM event creation fee");
         
         require(bytes(ipfsHash).length > 0, "Invalid IPFS hash");
         require(bytes(ticketIpfsHash).length > 0, "Invalid ticket IPFS hash");
@@ -72,7 +73,7 @@ contract EventRegistry {
         
         eventContract = address(new EventContract(
             address(identityContract),
-            MJPY,
+            JPYM,
             msg.sender,
             ipfsHash,
             ticketIpfsHash,
@@ -96,7 +97,7 @@ contract EventRegistry {
         
         eventCounter++;
         
-        IERC20(MJPY).transfer(platformWallet, EVENT_CREATION_FEE_MJPY);
+        IERC20(JPYM).transfer(platformWallet, EVENT_CREATION_FEE_JPYM);
     }
     
     function getEventContract(uint256 eventId) external view returns (address) {
@@ -125,10 +126,16 @@ contract EventRegistry {
         emit PlatformWalletUpdated(_platformWallet);
     }
     
+    function setJPYMAddress(address _jpymAddress) external onlyOwner {
+        require(_jpymAddress != address(0), "Invalid JPYM address");
+        JPYM = _jpymAddress;
+        emit JPYMAddressUpdated(_jpymAddress);
+    }
+    
     function withdrawFees() external onlyOwner {
-        uint256 balance = IERC20(MJPY).balanceOf(address(this));
+        uint256 balance = IERC20(JPYM).balanceOf(address(this));
         if (balance > 0) {
-            IERC20(MJPY).transfer(owner, balance);
+            IERC20(JPYM).transfer(owner, balance);
         }
     }
     
