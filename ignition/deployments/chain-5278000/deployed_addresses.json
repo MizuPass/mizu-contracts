@@ -1,6 +1,6 @@
 {
-  "MizuPassModule#MizuPassIdentity": "0xCA18A11ca8e44c9eef603242Ef3cc92EE8BE12C2",
-  "MizuPassModule#StealthAddressManager": "0xd3f546833a453e0394721bDe6B36da19B3095184",
-  "MizuPassModule#EventRegistry": "0x7D42F4B107EF6F665Fdb4fAD293f619a7F6111Fa",
-  "MizuPassModule#MizuPassPaymentGateway": "0x6931f210c23d2aDDd759f9429A0866A1F4A25e61"
+  "MizuPassModule#MizuPassIdentity": "0x3200D5861a8bA6874e81f1B2A03661bBCA1e6665",
+  "MizuPassModule#StealthAddressManager": "0xAd6dFe534f3bE9221ceaE8bCD929CCa052D48a6B",
+  "MizuPassModule#EventRegistry": "0x54DfB6B1D9B04A39a8f9e26BaE15390c3Bb6781A",
+  "MizuPassModule#MizuPassPaymentGateway": "0x3A9599b432A381Fad07a34f6040A95284A0D54F4"
 }

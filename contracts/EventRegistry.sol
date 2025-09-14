@@ -47,13 +47,19 @@ contract EventRegistry {
         string memory ipfsHash,
         uint256 ticketPrice,
         uint256 maxTickets,
-        uint256 eventDate
+        uint256 eventDate,
+        string memory eventName,
+        string memory eventSymbol
     ) external payable onlyEventCreators returns (address eventContract) {
         require(msg.value >= eventCreationFee, "Insufficient creation fee");
         require(bytes(ipfsHash).length > 0, "Invalid IPFS hash");
         require(ticketPrice > 0, "Invalid ticket price");
         require(maxTickets > 0, "Invalid max tickets");
         require(eventDate > block.timestamp, "Invalid event date");
+        require(bytes(eventName).length > 0, "Invalid event name");
+        require(bytes(eventName).length <= 50, "Event name too long");
+        require(bytes(eventSymbol).length > 0, "Invalid event symbol");
+        require(bytes(eventSymbol).length <= 10, "Event symbol too long");
         require(paymentGateway != address(0), "Payment gateway not set");
         require(platformWallet != address(0), "Platform wallet not set");
         
@@ -65,7 +71,9 @@ contract EventRegistry {
             ticketPrice,
             maxTickets,
             eventDate,
-            platformWallet
+            platformWallet,
+            eventName,
+            eventSymbol
         ));
         
         eventContracts[eventCounter] = eventContract;

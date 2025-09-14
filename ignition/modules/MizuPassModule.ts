@@ -13,7 +13,7 @@ export default buildModule("MizuPassModule", (m) => {
   ]);
   
   m.call(eventRegistry, "setPaymentGateway", [mizuPassPaymentGateway]);
-  m.call(eventRegistry, "setPlatformWallet", [m.getAccount(0)]);
+  m.call(eventRegistry, "setPlatformWallet", ['0xfd1AF2826012385a84A8E9BE8a1586293FB3980B']);
   
   return {
     mizuPassIdentity,

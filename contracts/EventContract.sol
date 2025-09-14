@@ -49,13 +49,19 @@ contract EventContract is ERC721, Ownable, ReentrancyGuard, IEventContract {
         uint256 _ticketPrice,
         uint256 _maxTickets,
         uint256 _eventDate,
-        address _platformWallet
-    ) ERC721("MizuPass Ticket", "MPT") Ownable(_organizer) {
+        address _platformWallet,
+        string memory _eventName,
+        string memory _eventSymbol
+    ) ERC721(_eventName, _eventSymbol) Ownable(_organizer) {
         require(_identityContract != address(0), "Invalid identity contract");
         require(_paymentGateway != address(0), "Invalid payment gateway");
         require(_organizer != address(0), "Invalid organizer");
         require(bytes(_ipfsHash).length > 0, "Invalid IPFS hash");
         require(_platformWallet != address(0), "Invalid platform wallet");
+        require(bytes(_eventName).length > 0, "Invalid event name");
+        require(bytes(_eventName).length <= 50, "Event name too long");
+        require(bytes(_eventSymbol).length > 0, "Invalid event symbol");
+        require(bytes(_eventSymbol).length <= 10, "Event symbol too long");
         
         identityContract = MizuPassIdentity(_identityContract);
         paymentGateway = MizuPassPaymentGateway(_paymentGateway);
@@ -202,5 +208,13 @@ contract EventContract is ERC721, Ownable, ReentrancyGuard, IEventContract {
             hasAttended[tokenId],
             originalPurchasePrice[tokenId]
         );
-    }  
+    }
+    
+    function getEventName() external view returns (string memory) {
+        return name();
+    }
+    
+    function getEventSymbol() external view returns (string memory) {
+        return symbol();
+    }
 }

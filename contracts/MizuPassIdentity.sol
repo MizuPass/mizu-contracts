@@ -14,13 +14,12 @@ contract MizuPassIdentity {
     
     enum UserRole { None, EventCreator, RegularUser }
     mapping(address => UserRole) public userRoles;
-    mapping(address => string) public userRegistrationData;
     
     address public owner;
     
     event DexWhitelistUpdated(address indexed dexRouter, bool whitelisted);
     event ZKPassportVerified(address indexed user, bytes32 nullifierHash);
-    event UserRoleRegistered(address indexed user, UserRole role, string ipfsHash);
+    event UserRoleRegistered(address indexed user, UserRole role);
     
     modifier onlyOwner() {
         require(msg.sender == owner, "Not owner");
@@ -82,23 +81,17 @@ contract MizuPassIdentity {
         return zkPassportIdentifiers[user];
     }
     
-    function registerUserRole(UserRole role, string memory ipfsHash) external onlyVerifiedUsers {
+    function registerUserRole(UserRole role) external onlyVerifiedUsers {
         require(role == UserRole.EventCreator || role == UserRole.RegularUser, "Invalid role");
         require(userRoles[msg.sender] == UserRole.None, "User already registered");
-        require(bytes(ipfsHash).length > 0, "Invalid IPFS hash");
         
         userRoles[msg.sender] = role;
-        userRegistrationData[msg.sender] = ipfsHash;
         
-        emit UserRoleRegistered(msg.sender, role, ipfsHash);
+        emit UserRoleRegistered(msg.sender, role);
     }
     
     function getUserRole(address user) external view returns (UserRole) {
         return userRoles[user];
-    }
-    
-    function getUserRegistrationData(address user) external view returns (string memory) {
-        return userRegistrationData[user];
     }
     
     function isEventCreator(address user) external view returns (bool) {
