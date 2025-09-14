@@ -68,12 +68,11 @@ contract EventRegistry {
         require(bytes(eventName).length <= 50, "Event name too long");
         require(bytes(eventSymbol).length > 0, "Invalid event symbol");
         require(bytes(eventSymbol).length <= 10, "Event symbol too long");
-        require(paymentGateway != address(0), "Payment gateway not set");
         require(platformWallet != address(0), "Platform wallet not set");
         
         eventContract = address(new EventContract(
             address(identityContract),
-            paymentGateway,
+            MJPY,
             msg.sender,
             ipfsHash,
             ticketIpfsHash,
