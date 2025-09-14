@@ -46,6 +46,7 @@ contract EventContract is ERC721, Ownable, ReentrancyGuard, IEventContract {
         address _paymentGateway,
         address _organizer,
         string memory _ipfsHash,
+        string memory _ticketIpfsHash,
         uint256 _ticketPrice,
         uint256 _maxTickets,
         uint256 _eventDate,
@@ -57,6 +58,7 @@ contract EventContract is ERC721, Ownable, ReentrancyGuard, IEventContract {
         require(_paymentGateway != address(0), "Invalid payment gateway");
         require(_organizer != address(0), "Invalid organizer");
         require(bytes(_ipfsHash).length > 0, "Invalid IPFS hash");
+        require(bytes(_ticketIpfsHash).length > 0, "Invalid ticket IPFS hash");
         require(_platformWallet != address(0), "Invalid platform wallet");
         require(bytes(_eventName).length > 0, "Invalid event name");
         require(bytes(_eventName).length <= 50, "Event name too long");
@@ -70,6 +72,7 @@ contract EventContract is ERC721, Ownable, ReentrancyGuard, IEventContract {
         eventData = EventData({
             organizer: _organizer,
             ipfsHash: _ipfsHash,
+            ticketIpfsHash: _ticketIpfsHash,
             ticketPrice: _ticketPrice,
             maxTickets: _maxTickets,
             ticketsSold: 0,
@@ -84,6 +87,8 @@ contract EventContract is ERC721, Ownable, ReentrancyGuard, IEventContract {
             _maxTickets,
             _eventDate
         );
+        
+        _safeMint(_organizer, 0);
     }
 
     function purchaseTicket() external payable onlyRegularUsers nonReentrant {
@@ -150,7 +155,6 @@ contract EventContract is ERC721, Ownable, ReentrancyGuard, IEventContract {
         
         _transfer(ownerOf(tokenId), buyer, tokenId);
         
-        
         if (platformFee > 0) {
             payable(platformWallet).transfer(platformFee);
             emit PlatformFeeCollected(platformFee, platformWallet);
@@ -216,5 +220,19 @@ contract EventContract is ERC721, Ownable, ReentrancyGuard, IEventContract {
     
     function getEventSymbol() external view returns (string memory) {
         return symbol();
+    }
+    
+    function tokenURI(uint256 tokenId) public view override returns (string memory) {
+        require(_ownerOf(tokenId) != address(0), "URI query for nonexistent token");
+        
+        if (tokenId == 0) {
+            return string(abi.encodePacked("ipfs://", eventData.ipfsHash));
+        }
+        
+        return string(abi.encodePacked("ipfs://", eventData.ticketIpfsHash));
+    }
+    
+    function _baseURI() internal pure override returns (string memory) {
+        return "";
     }
 }

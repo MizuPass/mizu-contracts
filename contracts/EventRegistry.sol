@@ -45,6 +45,7 @@ contract EventRegistry {
     
     function createEvent(
         string memory ipfsHash,
+        string memory ticketIpfsHash,
         uint256 ticketPrice,
         uint256 maxTickets,
         uint256 eventDate,
@@ -53,6 +54,7 @@ contract EventRegistry {
     ) external payable onlyEventCreators returns (address eventContract) {
         require(msg.value >= eventCreationFee, "Insufficient creation fee");
         require(bytes(ipfsHash).length > 0, "Invalid IPFS hash");
+        require(bytes(ticketIpfsHash).length > 0, "Invalid ticket IPFS hash");
         require(ticketPrice > 0, "Invalid ticket price");
         require(maxTickets > 0, "Invalid max tickets");
         require(eventDate > block.timestamp, "Invalid event date");
@@ -68,6 +70,7 @@ contract EventRegistry {
             paymentGateway,
             msg.sender,
             ipfsHash,
+            ticketIpfsHash,
             ticketPrice,
             maxTickets,
             eventDate,
@@ -135,7 +138,8 @@ contract EventRegistry {
         for (uint256 i = 0; i < eventIds.length; i++) {
             uint256 eventId = eventIds[i];
             if (eventContracts[eventId] != address(0)) {
-                IEventContract eventContractInterface = IEventContract(eventContracts[eventId]);
+                address eventContract = eventContracts[eventId];
+                IEventContract eventContractInterface = IEventContract(eventContract);
                 IEventContract.EventData memory eventData = eventContractInterface.getEventData();
                 if (eventData.isActive && block.timestamp < eventData.eventDate) {
                     activeCount++;
@@ -150,11 +154,12 @@ contract EventRegistry {
         for (uint256 i = 0; i < eventIds.length; i++) {
             uint256 eventId = eventIds[i];
             if (eventContracts[eventId] != address(0)) {
-                IEventContract eventContractInterface = IEventContract(eventContracts[eventId]);
+                address eventContract = eventContracts[eventId];
+                IEventContract eventContractInterface = IEventContract(eventContract);
                 IEventContract.EventData memory eventData = eventContractInterface.getEventData();
                 if (eventData.isActive && block.timestamp < eventData.eventDate) {
                     activeEventIds[index] = eventId;
-                    activeEventContracts[index] = eventContracts[eventId];
+                    activeEventContracts[index] = eventContract;
                     index++;
                 }
             }
@@ -196,11 +201,10 @@ contract EventRegistry {
     
     function getEventDetails(uint256 eventId) external view returns (IEventContract.EventData memory eventData, address eventContract) {
         require(eventId < eventCounter, "Event does not exist");
-        eventContract = eventContracts[eventId];
-        require(eventContract != address(0), "Event contract not found");
+        require(eventContracts[eventId] != address(0), "Event contract not found");
         
+        eventContract = eventContracts[eventId];
         IEventContract eventContractInterface = IEventContract(eventContract);
         eventData = eventContractInterface.getEventData();
     }
 }
-

@@ -5,6 +5,7 @@ interface IEventContract {
     struct EventData {
         address organizer;
         string ipfsHash;
+        string ticketIpfsHash;
         uint256 ticketPrice;
         uint256 maxTickets;
         uint256 ticketsSold;
