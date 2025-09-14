@@ -25,6 +25,9 @@ contract EventContract is ERC721, Ownable, ReentrancyGuard, IEventContract {
     event EventDateUpdated(uint256 newEventDate);
     event MaxTicketsUpdated(uint256 newMaxTickets);
     event PlatformFeeCollected(uint256 amount, address platformWallet);
+    event OrganizerPaid(address indexed stealthAddress, address indexed organizer, uint256 mjpyAmount);
+    event StealthAddressReadyToPay(address indexed stealthAddress, address indexed organizer, uint256 mjpyAmount);
+
     
     modifier onlyRegularUsers() {
         require(identityContract.isRegularUser(msg.sender), "Not a regular user");
@@ -91,32 +94,23 @@ contract EventContract is ERC721, Ownable, ReentrancyGuard, IEventContract {
         _safeMint(_organizer, 0);
     }
 
-    function purchaseTicket() external payable onlyRegularUsers nonReentrant {
+    function purchaseTicket(address stealthAddress) external payable onlyRegularUsers nonReentrant {
         require(eventData.isActive, "Event not active");
         require(eventData.ticketsSold < eventData.maxTickets, "Sold out");
         require(block.timestamp < eventData.eventDate, "Event has passed");
         require(msg.value >= eventData.ticketPrice, "Insufficient payment");
-        
-        address stealthAddress;
-        try paymentGateway.generateStealthAddress(msg.sender, uint256(keccak256(abi.encodePacked(block.timestamp, msg.sender, eventData.ticketPrice)))) returns (
-            address generatedStealth,
-            uint256,
-            uint256,
-            bytes1
-        ) {
-            stealthAddress = generatedStealth;
-        } catch {
-            stealthAddress = msg.sender;
-        }
+        require(stealthAddress != address(0), "Invalid stealth address");
+        require(stealthAddress != msg.sender, "Stealth address cannot be sender");
         
         uint256 platformFee = (eventData.ticketPrice * PLATFORM_FEE_BPS) / 10000;
-        uint256 organizerAmount = eventData.ticketPrice - platformFee;
         uint256 tokenId = _tokenIdCounter++;
         
-        paymentGateway.purchaseTicketWithJETH{value: organizerAmount}(
+        paymentGateway.purchaseTicketWithJETH{
+            value: eventData.ticketPrice
+        }(
             tokenId,
             stealthAddress,
-            organizerAmount,
+            eventData.ticketPrice,
             block.timestamp + 300
         );
         
@@ -135,8 +129,17 @@ contract EventContract is ERC721, Ownable, ReentrancyGuard, IEventContract {
         }
         
         emit TicketPurchased(stealthAddress, tokenId, eventData.ticketPrice);
+        
+        emit StealthAddressReadyToPay(stealthAddress, eventData.organizer, eventData.ticketPrice - platformFee);
     }
-    
+
+    function recordOrganizerPayment(uint256 mjpyAmount) external {
+        require(mjpyAmount > 0, "Invalid amount");
+        require(eventData.organizer != address(0), "No organizer set");
+            
+        emit OrganizerPaid(msg.sender, eventData.organizer, mjpyAmount);
+    }
+
     function resaleTicket(
         uint256 tokenId,
         uint256 price,
