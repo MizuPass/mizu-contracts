@@ -36,6 +36,7 @@ interface IEventContract {
     
     function getEventData() external view returns (EventData memory);
     function purchaseTicket(address stealthAddress, uint256 gasAmount) external payable;
+    function purchaseTicketDirect() external;
     function resaleTicket(uint256 tokenId, uint256 price, address buyer) external;
     function setEventActive(bool _isActive) external;
 }

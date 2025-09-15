@@ -236,6 +236,30 @@ contract EventContract is ERC721, Ownable, ReentrancyGuard, IEventContract {
         emit PaymentCompleted(stealthAddress, tokenId);
     }
 
+    function purchaseTicketDirect() external onlyRegularUsers nonReentrant {
+        require(eventData.isActive, "Event not active");
+        require(eventData.ticketsSold < eventData.maxTickets, "Sold out");
+        require(block.timestamp < eventData.eventDate, "Event has passed");
+        require(!ticketPurchased[msg.sender], "Already purchased");
+
+        require(
+            jpymToken.transferFrom(msg.sender, eventData.organizer, eventData.ticketPrice),
+            "Payment to organizer failed"
+        );
+        require(
+            jpymToken.transferFrom(msg.sender, platformWallet, TICKET_PURCHASE_FEE_JPYM),
+            "Platform fee transfer failed"
+        );
+
+        ticketPurchased[msg.sender] = true;
+        uint256 tokenId = _tokenIdCounter++;
+        eventData.ticketsSold++;
+        originalPurchasePrice[tokenId] = eventData.ticketPrice;
+        _safeMint(msg.sender, tokenId);
+
+        emit TicketPurchased(msg.sender, tokenId, eventData.ticketPrice);
+    }
+
     // Utility function to check if stealth address has pending payment
     function hasPendingPayment(address stealthAddress) external view returns (bool) {
         return pendingPayments[stealthAddress].stealthAddress != address(0) && 
